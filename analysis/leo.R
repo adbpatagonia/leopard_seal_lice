@@ -219,6 +219,17 @@ car::Anova(m.lice.cond)
 summary(m.lice.cond)
 
 
+leo[!is.na(weight_kg), E.pres.cond := (modelbased::estimate_prediction(m.lice.cond)$Predicted)]
+leo[!is.na(weight_kg), E.pres.cond_lci := (modelbased::estimate_prediction(m.lice.cond)$CI_low)]
+leo[!is.na(weight_kg), E.pres.cond_uci := (modelbased::estimate_prediction(m.lice.cond)$CI_high)]
+
+
+p.m.pres <- ggplot(data = leo, aes(x = rel_cond, y = presence)) +
+  geom_line(aes(y = E.pres.cond)) +
+  geom_ribbon(aes(ymin = E.pres.cond_lci, ymax = E.pres.cond_uci), alpha = 0.2) +
+  geom_point() +
+  theme_bw()
+
 ## presence ~ age  -----
 m.lice.age <- glmmTMB::glmmTMB(presence ~ age_class  ,
                                data = leo,
@@ -258,7 +269,7 @@ performance::check_model(m.lice.abun.cond.year)
 # can't use sex as only one F with lice
 # can't use age_class as only one juvenile with lice
 
-m.lice.abun.cond <- glmmTMB::glmmTMB(Lice+.0001 ~ rel_cond   ,
+m.lice.abun.cond <- glmmTMB::glmmTMB(Lice ~ rel_cond   ,
                                           data = leo)
 
 performance::check_model(m.lice.abun.cond)
@@ -269,6 +280,17 @@ performance::check_singularity(m.lice.abun.cond)
 performance::model_performance(m.lice.abun.cond)
 car::Anova(m.lice.abun.cond)
 summary(m.lice.abun.cond)
+
+leo[!is.na(weight_kg), E.abun.cond := (modelbased::estimate_prediction(m.lice.abun.cond)$Predicted)]
+leo[!is.na(weight_kg), E.abun.cond_lci := (modelbased::estimate_prediction(m.lice.abun.cond)$CI_low)]
+leo[!is.na(weight_kg), E.abun.cond_uci := (modelbased::estimate_prediction(m.lice.abun.cond)$CI_high)]
+
+
+p.m.abun <- ggplot(data = leo, aes(x = rel_cond, y = Lice)) +
+  geom_line(aes(y = E.abun.cond)) +
+  geom_ribbon(aes(ymin = E.abun.cond_lci, ymax = E.abun.cond_uci), alpha = 0.2) +
+  geom_point() +
+  theme_bw()
 
 ## abundance ~ condition, only for animals with lice-----
 # can't use sex as only one F with lice
@@ -317,7 +339,7 @@ summary(m.lice.abun.cond.nozero.qr)
 leo.present$ELice.qr <- predict(m.lice.abun.cond.nozero.qr)
 
 
-ggplot(leo.present, aes(x = rel_cond, y = Lice)) +
+p.m.qr.abun <- ggplot(leo.present, aes(x = rel_cond, y = Lice)) +
   theme_bw() +
   geom_line(aes(y = ELice.qr)) +
   geom_point()
