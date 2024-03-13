@@ -19,6 +19,7 @@ library(lme4)
 library(car)
 library(performance)
 library(modelbased)
+library(quantreg)
 
 
 # functions -----
@@ -80,7 +81,13 @@ p.lw <- ggplot(data = leo, aes(x = SL_cm, y = weight_kg)) +
   facet_wrap(.~sex)
 
 ## calcular condicion -----
+### relative condition ----
 leo[, rel_cond := weight_kg/pred_weight]
+
+### mass per standard lenght ----
+# Boveng et al 2020
+leo[, mass_length := weight_kg/SL_cm]
+### plots ----
 
 p.cond <- ggplot(data = leo, aes(x = rel_cond, fill = sex, color = sex)) +
   theme_bw() +
@@ -88,8 +95,22 @@ p.cond <- ggplot(data = leo, aes(x = rel_cond, fill = sex, color = sex)) +
   xlab("Relative condition") +
   theme(legend.position = c(.05, .85),
         legend.background = element_rect(colour = NA, fill = NA),
-        legend.title = element_blank())
+        legend.title = element_blank()) +
+  labs(title = expression(R[k]*" = W/"*hat(W)*"      "*hat(W)*" = a"~L^{"b"}))
+       # caption = expression(paste("Si la condicion de la foca es promedio, "*R[k]*" = 1
+       #                             Si la condicion de la foca es menor al promedio, "*R[k]*" < 1
+       #                            Si la condicion de la foca es mayor al promedio, "*R[k]*" > 1"
+       #                            )
+       # ))
 
+p.mass_length <- ggplot(data = leo, aes(x = mass_length, fill = sex, color = sex)) +
+  theme_bw() +
+  geom_density(alpha = 0.3) +
+  xlab("Mass per standard lenght") +
+  theme(legend.position = c(.05, .85),
+        legend.background = element_rect(colour = NA, fill = NA),
+        legend.title = element_blank()) +
+  labs(title = "Mass per standard length as per Boveng et al 2020")
 
 ## Lice abundance ----
 p.lice.sex <- ggplot(leo, aes(x = sex, y = Lice)) +
@@ -99,7 +120,7 @@ p.lice.sex <- ggplot(leo, aes(x = sex, y = Lice)) +
 p.lice.cond <- ggplot(leo, aes(x = rel_cond, y = Lice, color = sex)) +
   theme_bw() +
   geom_point(alpha = 0.8) +
-  geom_smooth() +
+  # geom_smooth() +
   geom_vline(xintercept = 1, lty = 2)
 ggplotly(p.lice.cond)
 
@@ -118,7 +139,7 @@ p.lice.sex.presence <- ggplot(leo, aes(x = sex, y = presence)) +
 p.lice.cond.presence <- ggplot(leo, aes(x = rel_cond, y = presence, color = sex)) +
   theme_bw() +
   geom_point(alpha = 0.8) +
-  geom_smooth() +
+  # geom_smooth() +
   geom_vline(xintercept = 1, lty = 2)
 ggplotly(p.lice.cond.presence)
 
@@ -209,3 +230,98 @@ performance::check_singularity(m.lice.age)
 performance::model_performance(m.lice.age)
 car::Anova(m.lice.age)
 summary(m.lice.age)
+
+## presence ~ condition +  year -----
+# can't use sex as only one F with lice
+# can't use age_class as only one juvenile with lice
+
+m.lice.cond.year <- glmmTMB::glmmTMB(presence ~ rel_cond   + (1|year),
+                                         data = leo,
+                                         family = "binomial")
+
+performance::check_model(m.lice.cond.year)
+summary(m.lice.cond.year)
+# effect of year is negligible
+
+## abundance ~ condition +  year -----
+# can't use sex as only one F with lice
+# can't use age_class as only one juvenile with lice
+
+m.lice.abun.cond.year <- glmmTMB::glmmTMB(Lice ~ rel_cond   + (1|year),
+                                     data = leo)
+
+performance::check_model(m.lice.abun.cond.year)
+# no es horrible, pero el efecto de ano es despreciable
+
+
+## abundance ~ condition -----
+# can't use sex as only one F with lice
+# can't use age_class as only one juvenile with lice
+
+m.lice.abun.cond <- glmmTMB::glmmTMB(Lice+.0001 ~ rel_cond   ,
+                                          data = leo)
+
+performance::check_model(m.lice.abun.cond)
+# fulero, pero veamos igual
+performance::check_convergence(m.lice.abun.cond)
+performance::check_singularity(m.lice.abun.cond)
+# r2 es despreciable 0.002 - no explicamos nada de la variabilidad
+performance::model_performance(m.lice.abun.cond)
+car::Anova(m.lice.abun.cond)
+summary(m.lice.abun.cond)
+
+## abundance ~ condition, only for animals with lice-----
+# can't use sex as only one F with lice
+# can't use age_class as only one juvenile with lice
+leo.present <- leo[sex == "M" & presence == 1]
+
+m.lice.abun.cond.nozero <- glmmTMB::glmmTMB(Lice  ~ rel_cond   ,
+                                     data = leo.present)
+
+performance::check_model(m.lice.abun.cond.nozero)
+# fulero, pero veamos igual
+performance::check_convergence(m.lice.abun.cond.nozero)
+performance::check_singularity(m.lice.abun.cond.nozero)
+# r2: 0.87
+performance::model_performance(m.lice.abun.cond.nozero)
+car::Anova(m.lice.abun.cond.nozero)
+parameters::model_parameters(m.lice.abun.cond.nozero)
+summary(m.lice.abun.cond.nozero)
+
+leo.present$ELice <- predict(m.lice.abun.cond.nozero)
+
+
+ggplot(leo.present, aes(x = rel_cond, y = Lice)) +
+  theme_bw() +
+  geom_line(aes(y = ELice)) +
+  geom_point()
+# this does not really make sense
+
+# try quantile regression
+
+#### quantile regression ------
+m.lice.abun.cond.nozero.qr <- quantreg::rq(Lice  ~ rel_cond   ,
+                                           tau = seq(0, 1, by = 0.1),
+                                            data = leo.present)
+m.lice.abun.cond.nozero.qr
+m.lice.abun.cond.nozero.qr <- quantreg::rq(Lice  ~ rel_cond   ,
+                                           tau = 0.75,
+                                           data = leo.present)
+performance::check_singularity(m.lice.abun.cond.nozero.qr)
+# r2 es despreciable 0.002 - no explicamos nada de la variabilidad
+performance::model_performance(m.lice.abun.cond.nozero.qr)
+# quantreg::anova.rq(m.lice.abun.cond.nozero.qr)
+parameters::model_parameters(m.lice.abun.cond.nozero.qr)
+summary(m.lice.abun.cond.nozero.qr)
+
+leo.present$ELice.qr <- predict(m.lice.abun.cond.nozero.qr)
+
+
+ggplot(leo.present, aes(x = rel_cond, y = Lice)) +
+  theme_bw() +
+  geom_line(aes(y = ELice.qr)) +
+  geom_point()
+
+# compile report ------
+compile_rmd("PiojosFocaLeopardo")
+
