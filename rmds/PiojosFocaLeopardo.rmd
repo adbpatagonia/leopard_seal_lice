@@ -30,7 +30,7 @@ options(warn=-1)
 Este es un proyecto liderado por la Dra Florencia Soto
 (IBIOMAR-CENPAT).\
 El proyecto fue dirigido por la Dra Soledad Leonardi (IBIOMAR-CENPAT), y
-co-dirigido por el Dr Javier Negrete (IAA).\
+co-dirigido por el Dr Javier Negrete (IAA-CONICET).\
 Javier me contacto para ayudar con el analisis de estos datos
 
 # Preguntas
@@ -88,9 +88,31 @@ Por lo tanto, para estos analisis utilice $K_r$ como metrica de condicion corpor
 
 ## Modelado         
 
-### Presencia           
+Modele (modelos lineales generalizados) la presencia y la abundancia de piojos como funcion de las variables de interes. Dado que solo 1 hembra y 1 juvenil tuvieron piojos, exclui las variables sexo y clase de edad del analisis - no hay contraste en los datos para discernir el efecto de estas variables, esto no quiere decir que no haya un efecto, significa que no somos capaces d detectarlo con los datos que tenemos.           
+
+Entonces, en ambos casos plantee modelos lineales de la forma: 
+
+ResponseVariable ~ condicion + (1|ano)      
+
+Esto es, planteando a la condicion como variable fija y ano como variable aletoria. De esta manera, analizamos el efecto de la condicion sobre la variabl de respuesta de interes, al mismo tiempo que controlamos estaisticamnete por la variabilidad interanual.       
+
+En ambos casos, la varianza explicada por la variable aleatoria ano fue muy cercana a cero, y por ende la descarte. Esto simplifico los modelos a modelos lineal generalizados:   
+
+ResponseVariable ~ condicion
+
+
+### Presencia         
+
+La presencia la modele como una regresion logistica, es decir un modelo lineal generalizado, donde la variable de respuesta sigue una distribucion binomial.    
 
 ### Abundancia         
+
+La presencia la modele como una regresion simple, es decir un modelo lineal generalizado, donde los residuales siguen una distribucion normal.       
+
+#### Regresion cuantilica           
+
+Por ultimo, para explorar un poco mas la relacion entre abundancia y condicion, utilice una regresion cuantilica. En esta regresion la variable de respuesta es un cuantil de interes de la abundancia de piojos, en lugar de modelar la media de la abundancia de piojos como en la regresion clasica. En este caso, utilice el cuantil 75%. Para este ejercicio utilice solo las focas macho que tuvieron piojos. Esto dejo un tamano muestral muy pequeno (n=6) por lo que las interpretaciones se deben hacer con mucho cuidado.    
+La hipotesis de trbajo es que existe una abundancia baja de "background" en la cantidad de piojos, pero que aquellas focas con peor condicion corporal son mas susceptibles a grandes infestaciones (probablemente este no sea el termino correcto, me disculpo de antemano) que las focas que estan en buena condicion.       
 
 # Resultados             
 
@@ -210,7 +232,47 @@ En esta seccion presento graficos de la presencia de piojos como funcion de las 
 (p.lice.cond.presence)
 ```
 
+## Modelado      
+
+### Presencia         
+
+El efecto de la condicion resulto ser no significativo, <i>p-value</i>: `r round(pull(car::Anova(m.lice.cond)[3]), 2)`.  Es decir, la condicion corporal no parece afectar la probabilidad de presencia de piojos en focas leopardo.      
+
+```{r p.lice.cond, fig.width = 10, fig.height = 6, echo=FALSE, message=FALSE, warning=FALSE}
+print(p.m.pres)
+```
+
+### Abundancia            
+#### Regresion simple          
+
+El efecto de la condicion resulto ser no significativo, <i>p-value</i>: `r round(pull(car::Anova(m.lice.abun.cond)[3]), 2)`.  Es decir, la condicion corporal no parece afectar la abundancia media de piojos en focas leopardo.      
+
+```{r p.lice.abun.cond, fig.width = 10, fig.height = 6, echo=FALSE, message=FALSE, warning=FALSE}
+print(p.m.abun)
+```
+
+#### Regresion cuantilica          
+
+El efecto de la condicion  sobre el cuantil 75% de abundancia resulto ser no significativo, <i>p-value</i>: `r round(parameters::model_parameters(m.lice.abun.cond.nozero.qr)$p[2], 2)`, aunque el coeficiente fue negativo, <i>pendiente</i>: `r round(parameters::model_parameters(m.lice.abun.cond.nozero.qr)$Coefficient[2], 2)`.  Es decir, la condicion corporal  parece afectar negativamente la abundancia alta de piojos en focas leopardo (aunque no es significativo estadisticamente). Notese que solo hay 3 datos que caen en el cuantil 75%, por lo que estos resultados se deben interpretar con mucha cautela.      
+
+```{r p.lice.qr, fig.width = 10, fig.height = 6, echo=FALSE, message=FALSE, warning=FALSE}
+print(p.m.qr.abun)
+```
+
+
+# Conclusiones                  
 
 
 
-# References
+  * Una proporcion baja de las focas muestreadas tuvieron piojos `r sum(leo$presence)/nrow(leo)*100`%.     
+    * Esta proporcion fue mas baja en hembras (`r round(100*(t.lice.presence.sex %>% filter(sex == "F") %>% select(prop) %>% pull()), 1)`%), que en machos (`r round(100*(t.lice.presence.sex %>% filter(sex == "M") %>% select(prop) %>% pull()), 1)`%)         
+     * Esta proporcion fue mas baja en adultos (`r round(100*(t.lice.presence.age_class %>% filter(age_class == "ADT") %>% select(prop) %>% pull()), 1)`%), que en juveniles (`r round(100*(t.lice.presence.age_class %>% filter(age_class == "JUV") %>% select(prop) %>% pull()), 1)`%)      
+     
+  * Dada la baja presencia de piojos, todos los resultados de analisis estadisticos deben interpretarse con mucho precaucion.               
+  * No pude incorporar el efecto de las variables sexo o clase de edad en los analisis, ya que solo una hembra y solo un juvenil presentaron piojos. Esto no implica que no exista un efecto, implica simplemente que no lo podemos poner a prueba            
+  * La condicion corporal de las focas no parece afectar la probabilidad de presencia de piojos         
+  * La condicion corporal de las focas no parece afectar la abundancia media de piojos         
+  * La condicion corporal de las focas parece afectar la abundancia alta de piojos (cuantil 75%), aunque la relacion no es estadisticamente significativa.                    
+    
+
+# Referencias
